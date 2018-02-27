@@ -39,7 +39,7 @@ const validateCredentials = (req, res, next) => {
 				req.session.isLoggedIn = false;
 				sendUserError(err, res);
 			} else {
-				req.user = username;
+				req.session.user = username;
 				req.session.isLoggedIn = true;
 				next();
 			}
@@ -52,7 +52,7 @@ const validateCredentials = (req, res, next) => {
 
 const isLoggedIn = (req, res, next) => {
 	if (req.session.isLoggedIn) {
-		// req.user = req.body.username;
+		req.user = req.session.user;
 		next();
 	} else {
 		sendUserError('Please log in.', res);
@@ -78,12 +78,9 @@ server.post('/users', (req, res) => {
 
 server.post('/log-in', validateCredentials, (req, res) => {
 	if (req.session.isLoggedIn) {
-		// console.log(req.body.username);
 		if (!req.user) {
-			console.log(req.body.username);
 			req.user = req.body.username;
 		}
-		// console.log(req.user);
 		res.json({success: true})
 	} else {
 		sendUserError('Couldn\'t validate credentials.', res)
