@@ -12,7 +12,9 @@ const server = express();
 server.use(bodyParser.json());
 server.use(
 	session({
-		secret: 'e5SPiqsEtjexkTj3Xqovsjzq8ovjfgVDFMfUzSmJO21dtXs4re'
+		secret: 'e5SPiqsEtjexkTj3Xqovsjzq8ovjfgVDFMfUzSmJO21dtXs4re',
+		resave: true,
+    	saveUninitialized: true
 	})
 );
 
@@ -30,36 +32,39 @@ const sendUserError = (err, res) => {
 
 const validateCredentials = (req, res, next) => {
 	const username = req.body.username;
-	let passwordHash = '';
-	User.findOne({username: username}).then((user) => {
-		console.log(user.username);
-		console.log(user.password);
-		console.log(user.passwordHash);
-		passwordHash = user.passwordHash;
-		bcrypt.compare(req.session.password, passwordHash, (err, isValid) => {
+	User.findOne({ username }).then((user) => {
+		bcrypt.compare(req.body.password, user.passwordHash, (err, isValid) => {
 			if (err) throw err;
 			if (!isValid) {
 				req.session.isLoggedIn = false;
 				sendUserError(err, res);
 			} else {
+				req.user = username;
 				req.session.isLoggedIn = true;
+				next();
 			}
 		});
-		// return;
-		next();
 	})
 	.catch((err) => {
 		sendUserError(err, res);
 	})
-	// const password = req.body.passwordHash;
-	// const inputPasswordHash = bcrypt.hashSync(req.body.password, BCRYPT_COST);
+}
+
+const isLoggedIn = (req, res, next) => {
+	if (req.session.isLoggedIn) {
+		// req.user = req.body.username;
+		next();
+	} else {
+		sendUserError('Please log in.', res);
+	}
 }
 
 server.post('/users', (req, res) => {
 	const userInformation = req.body;
-	if (!req.session.password) {
-		req.session.password = req.body.password;
+	if (!req.body.username || !req.body.password) {
+		sendUserError('Please provide a username and password.', res);
 	}
+	
 	req.body.passwordHash = bcrypt.hashSync(req.body.password, BCRYPT_COST);
 	const user = new User(userInformation);
 	user.save()
@@ -67,21 +72,26 @@ server.post('/users', (req, res) => {
 			res.status(201).json(newUser);
 		})
 		.catch((err) => {
-			// res.status(500).json({error: 'Error saving user to the database'});
-			sendUserError(err, res);
+			sendUserError('Error saving user to the database.', res);
 		});
 });
 
 server.post('/log-in', validateCredentials, (req, res) => {
 	if (req.session.isLoggedIn) {
-		res.json({succes: true})
+		// console.log(req.body.username);
+		if (!req.user) {
+			console.log(req.body.username);
+			req.user = req.body.username;
+		}
+		// console.log(req.user);
+		res.json({success: true})
 	} else {
 		sendUserError('Couldn\'t validate credentials.', res)
 	}
 })
 
 // TODO: add local middleware to this route to ensure the user is logged in
-server.get('/me', (req, res) => {
+server.get('/me', isLoggedIn, (req, res) => {
 	// Do NOT modify this route handler in any way.
 	res.json(req.user);
 });
