@@ -1,3 +1,4 @@
+/* eslint-disable */
 const bodyParser = require('body-parser');
 const express = require('express');
 const session = require('express-session');
@@ -8,18 +9,15 @@ const STATUS_USER_ERROR = 422;
 const BCRYPT_COST = 11;
 
 const server = express();
-// to enable parsing of json bodies for post requests
+
 server.use(bodyParser.json());
 server.use(
 	session({
 		secret: 'e5SPiqsEtjexkTj3Xqovsjzq8ovjfgVDFMfUzSmJO21dtXs4re',
 		resave: true,
-    	saveUninitialized: true
+		saveUninitialized: true
 	})
 );
-
-/* Sends the given err, a string or an object, to the client. Sets the status
- * code appropriately. */
 
 const sendUserError = (err, res) => {
 	res.status(STATUS_USER_ERROR);
@@ -32,46 +30,58 @@ const sendUserError = (err, res) => {
 
 const validateCredentials = (req, res, next) => {
 	const username = req.body.username;
-	User.findOne({ username }).then((user) => {
-		bcrypt.compare(req.body.password, user.passwordHash, (err, isValid) => {
-			if (err) throw err;
-			if (!isValid) {
-				req.session.isLoggedIn = false;
-				sendUserError(err, res);
-			} else {
-				req.session.user = username;
-				req.session.isLoggedIn = true;
-				next();
-			}
+	if (!req.body.password) {
+		sendUserError('Must provide a username and password - 123', res);
+		return;
+	}
+	User.findOne({ username })
+		.then(user => {
+			bcrypt.compare(req.body.password, user.passwordHash, (err, isValid) => {
+				if (err) {
+					sendUserError(err, res);
+					return;
+				}
+				if (!isValid) {
+					req.session.isLoggedIn = false;
+					sendUserError(err, res);
+				} else {
+					req.session.user = user._id;
+					req.session.isLoggedIn = true;
+					next();
+				}
+			});
+		})
+		.catch(err => {
+			sendUserError(err, res);
 		});
-	})
-	.catch((err) => {
-		sendUserError(err, res);
-	})
-}
+};
 
 const isLoggedIn = (req, res, next) => {
 	if (req.session.isLoggedIn) {
-		req.user = req.session.user;
-		next();
+		User.findOne({ _id: req.session.user }).then(foundUser => {
+			req.user = foundUser;
+			next();
+		});
 	} else {
 		sendUserError('Please log in.', res);
 	}
-}
+};
 
 server.post('/users', (req, res) => {
 	const userInformation = req.body;
 	if (!req.body.username || !req.body.password) {
 		sendUserError('Please provide a username and password.', res);
+		return;
 	}
-	
+
 	req.body.passwordHash = bcrypt.hashSync(req.body.password, BCRYPT_COST);
 	const user = new User(userInformation);
-	user.save()
-		.then((newUser) => {
-			res.status(201).json(newUser);
+	user
+		.save()
+		.then(newUser => {
+			res.status(200).json(newUser);
 		})
-		.catch((err) => {
+		.catch(err => {
 			sendUserError('Error saving user to the database.', res);
 		});
 });
@@ -79,13 +89,13 @@ server.post('/users', (req, res) => {
 server.post('/log-in', validateCredentials, (req, res) => {
 	if (req.session.isLoggedIn) {
 		if (!req.user) {
-			req.user = req.body.username;
+			req.user = req.body._id;
 		}
-		res.json({success: true})
+		res.json({ success: true });
 	} else {
-		sendUserError('Couldn\'t validate credentials.', res)
+		sendUserError("Couldn't validate credentials.", res);
 	}
-})
+});
 
 // TODO: add local middleware to this route to ensure the user is logged in
 server.get('/me', isLoggedIn, (req, res) => {
