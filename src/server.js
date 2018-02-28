@@ -86,7 +86,7 @@ server.post('/users', (req, res) => {
 		});
 });
 
-server.post('/log-in', validateCredentials, (req, res) => {
+server.post('/login', validateCredentials, (req, res) => {
 	if (req.session.isLoggedIn) {
 		if (!req.user) {
 			req.user = req.body._id;
@@ -94,6 +94,15 @@ server.post('/log-in', validateCredentials, (req, res) => {
 		res.json({ success: true });
 	} else {
 		sendUserError("Couldn't validate credentials.", res);
+	}
+});
+
+server.post('/logout', validateCredentials, (req, res) => {
+	if (req.session.isLoggedIn) {
+		req.session.isLoggedIn = false;
+		res.status(200).json('You have successfully logged out.');
+	} else {
+		sendUserError("Couldn't validate credentials. Are you logged in?", res);
 	}
 });
 
