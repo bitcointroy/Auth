@@ -4,6 +4,7 @@ const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const User = require('./user.js');
+const router = express.Router();
 
 const STATUS_USER_ERROR = 422;
 const BCRYPT_COST = 11;
@@ -18,6 +19,28 @@ server.use(
 		saveUninitialized: true
 	})
 );
+
+const isLoggedIn = (req, res, next) => {
+	if (req.session.isLoggedIn) {
+		// User.findOne({ _id: req.session.user }).then(foundUser => {
+		// 	req.user = foundUser;
+		// 	next();
+		// });
+		next();
+	} else {
+		sendUserError('Please log in.', res);
+	}
+};
+
+server.use('/restricted/users', isLoggedIn, (req, res, next) => {
+	User.find()
+		.then(users => {
+			res.send(users);
+		})
+		.catch(err => sendUserError(err, res));
+});
+
+// server.use(Restricted middleware)
 
 const sendUserError = (err, res) => {
 	res.status(STATUS_USER_ERROR);
@@ -54,17 +77,6 @@ const validateCredentials = (req, res, next) => {
 		.catch(err => {
 			sendUserError(err, res);
 		});
-};
-
-const isLoggedIn = (req, res, next) => {
-	if (req.session.isLoggedIn) {
-		User.findOne({ _id: req.session.user }).then(foundUser => {
-			req.user = foundUser;
-			next();
-		});
-	} else {
-		sendUserError('Please log in.', res);
-	}
 };
 
 server.post('/users', (req, res) => {
