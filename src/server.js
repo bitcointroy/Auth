@@ -66,21 +66,30 @@ const isLoggedIn = (req, res, next) => {
 	}
 };
 
-server.get('/restricted/users', isLoggedIn, (req, res, next) => {
-	console.log('VIPs only', req.session);
-	User.find({}, (err, users) => {
-		if (err) {
-			res.json(err);
-		}
-		res.json(users);
-	});
-	// User.find({})
-	// 	.then(users => {
-	// 		res.send(users);
-	// 		next();
-	// 	})
-	// .catch(err => sendUserError(err, res));
+server.use('/restricted/*', (req, res, next) => {
+	console.log('welcome VIP ...', req.session);
+	if (req.session.isLoggedIn) {
+		next();
+		// res.json({ success: true });
+	} else {
+		sendUserError("Couldn't validate credentials.", res);
+	}
 });
+
+server.get('/restricted/users', (req, res) => {
+	console.log('VIPs only', req.session);
+	User.find({})
+		// .select('username')
+		.then(users => {
+			res.send(users);
+		});
+});
+// User.find({})
+// 	.then(users => {
+// 		res.send(users);
+// 		next();
+// 	})
+// .catch(err => sendUserError(err, res));
 
 // server.use(Restricted middleware)
 
