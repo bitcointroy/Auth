@@ -5,12 +5,18 @@ const session = require('express-session');
 const bcrypt = require('bcrypt');
 const User = require('./user.js');
 const router = express.Router();
+const cors = require('cors');
 
 const STATUS_USER_ERROR = 422;
 const BCRYPT_COST = 11;
+const corsOptions = {
+	origin: 'http://localhost:3000',
+	credentials: true
+};
 
 const server = express();
 
+server.use(cors(corsOptions));
 server.use(bodyParser.json());
 server.use(
 	session({
@@ -19,37 +25,6 @@ server.use(
 		saveUninitialized: true
 	})
 );
-
-const isLoggedIn = (req, res, next) => {
-	if (req.session.isLoggedIn) {
-		// User.findOne({ _id: req.session.user }).then(foundUser => {
-		// 	req.user = foundUser;
-		// 	next();
-		// });
-		next();
-	} else {
-		sendUserError('Please log in.', res);
-	}
-};
-
-server.use('/restricted/users', isLoggedIn, (req, res, next) => {
-	User.find()
-		.then(users => {
-			res.send(users);
-		})
-		.catch(err => sendUserError(err, res));
-});
-
-// server.use(Restricted middleware)
-
-const sendUserError = (err, res) => {
-	res.status(STATUS_USER_ERROR);
-	if (err && err.message) {
-		res.json({ message: err.message, stack: err.stack });
-	} else {
-		res.json({ error: err });
-	}
-};
 
 const validateCredentials = (req, res, next) => {
 	const username = req.body.username;
@@ -79,6 +54,57 @@ const validateCredentials = (req, res, next) => {
 		});
 };
 
+const isLoggedIn = (req, res, next) => {
+	if (req.session.isLoggedIn) {
+		// User.findOne({ _id: req.session.user }).then(foundUser => {
+		// 	req.user = foundUser;
+		// 	next();
+		// });
+		next();
+	} else {
+		sendUserError('Please log in.', res);
+	}
+};
+
+server.get('/restricted/users', isLoggedIn, (req, res, next) => {
+	console.log('VIPs only', req.session);
+	User.find({}, (err, users) => {
+		if (err) {
+			res.json(err);
+		}
+		res.json(users);
+	});
+	// User.find({})
+	// 	.then(users => {
+	// 		res.send(users);
+	// 		next();
+	// 	})
+	// .catch(err => sendUserError(err, res));
+});
+
+// server.use(Restricted middleware)
+
+const sendUserError = (err, res) => {
+	res.status(STATUS_USER_ERROR);
+	if (err && err.message) {
+		res.json({ message: err.message, stack: err.stack });
+	} else {
+		res.json({ error: err });
+	}
+};
+
+// server.get('/restricted/users', isLoggedIn, (req, res) => {
+// 	if (isLoggedIn === true) {
+// 		User.find()
+// 			.then(retrievedInfo => {
+// 				res.status(200).json(retrievedInfo);
+// 			})
+// 			.catch(err => {
+// 				sendUserError('Could not find any users.', res);
+// 			});
+// 	}
+// });
+
 server.post('/users', (req, res) => {
 	const userInformation = req.body;
 	if (!req.body.username || !req.body.password) {
@@ -103,13 +129,14 @@ server.post('/login', validateCredentials, (req, res) => {
 		if (!req.user) {
 			req.user = req.body._id;
 		}
+		console.log('welcome ...', req.session);
 		res.json({ success: true });
 	} else {
 		sendUserError("Couldn't validate credentials.", res);
 	}
 });
 
-server.post('/logout', validateCredentials, (req, res) => {
+server.post('/logout', (req, res) => {
 	if (req.session.isLoggedIn) {
 		req.session.isLoggedIn = false;
 		res.status(200).json('You have successfully logged out.');
